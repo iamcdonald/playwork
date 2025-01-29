@@ -1,0 +1,15 @@
+{
+  "name": "pg-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "tasks.max": "1",
+    "database.hostname": "postgres",
+    "database.port": "5432",
+    "database.user": "demo",
+    "database.password": "password",
+    "database.dbname": "db",
+    "topic.prefix": "pg_conn",
+    "schema.include.list": "public",
+    "table.exclude.list": "public.flyway_schema_history"
+  }
+}
