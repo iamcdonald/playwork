@@ -1,8 +1,8 @@
 services:
   postgres:
     image: debezium/postgres
-    ports:
-      - 5432:5432
+    # ports:
+    #   - 5432:5432
     environment:
       - POSTGRES_USER=demo
       - POSTGRES_PASSWORD=password
@@ -17,15 +17,16 @@ services:
 
   kafka:
     image: apache/kafka
-    ports:
-      - 9092:9092
+    # ports:
+    #   - 29092:29092
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENERS: INTERNAL://:9092,EXTERNAL://:29092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:29092
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
@@ -35,8 +36,8 @@ services:
 
   debezium_connect:
     image: quay.io/debezium/connect:3.0
-    ports:
-      - 8083:8083
+    # ports:
+    #   - 8083:8083
     links:
       - postgres
       - kafka
@@ -46,6 +47,53 @@ services:
       - CONFIG_STORAGE_TOPIC=my_connect_configs
       - OFFSET_STORAGE_TOPIC=my_connect_offsets
       - STATUS_STORAGE_TOPIC=my_connect_statuses
+
+  pushpin:
+    image: fanout/pushpin
+    ports:
+      - 8000:7999
+    volumes:
+      - ./pushpin/routes:/etc/pushpin/routes
+    depends_on:
+      - backend
+
+  backend:
+    build: ./backend
+    # ports:
+    #   - 8000:8000
+    environment:
+      POSTGRES_HOST: postgres
+      KAFKA_HOST: kafka
+      PUSHPIN_INTERNAL_HOST: pushpin
+      PUSHPIN_EXTERNAL_HOST: localhost
+    develop:
+      # Create a `watch` configuration to update the appl
+      # https://docs.docker.com/compose/file-watch/#compose-watch-versus-bind-mounts
+      watch:
+        # Sync the working directory with the `/app` directory in the container
+        - action: sync
+          path: ./backend/app
+          target: /backend/app
+          # Exclude the project virtual environment — it could be for a
+          # different platform in the container
+          ignore:
+            - .venv/
+        # Rebuild the image if dependencies change by checking uv.lock
+        - action: rebuild
+          path: ./backend/uv.lock
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # depends_on:
+    #   - api_gateway
+
+  # api_gateway:
+  #   image: kong/kong-gateway
+  #   ports:
+  #     - 8000:8000
+  #   volumes:
+  #     - ./kong:/kong
 
   # setup
   postgres_setup:

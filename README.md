@@ -1,31 +1,70 @@
-## Debezium Playground
+# Debezium Playground
 
 ---
+
+## Outline
+A Postgres DB with Debezium tracking changes into a Kafka topic.
+
+Python server fronted by Pushpin allowing create, get, list of entries as well as
+listening to changes.
+
+Listening to changes uses Pushpin to setup a long lived connection.
+A background task is publishing changes from the Kafka topic to the same Pushpin channel allowing Server Side Events.
 
 ### Start Stack
 ```docker compose up```
 
-- creates postgres, kafka, and debezium connect services
+- creates postgres, kafka, debezium connect, python and pushpin services
 - uses flyway to prep the postgres instance (add a table)
 - creates instance of a postgres debezium connector
 
-### Kafka
-Check topics:
+### Usage
+_Create Thing_
+```
+curl --header "Content-Type: application/json" \
+  --request POST \
+  --data '{"name":"a thing"}' \
+  http://localhost:8000/things
+```
+_Get Thing_
+```
+> curl localhost:8000/things/:id
+```
+_List Things_
+```
+> curl localhost:8000/things
+```
+_Listen to Thing changes_
+```
+> curl localhost:8000/things/listen
+```
 
-```docker compose exec kafka /opt/kafka/bin/kafka-topics.sh --list --bootstrap-server kafka:9092```
+## Debugging
+#### **Kafka**
+_Check topics:_
 
-Watch topic:
+```
+> docker compose exec kafka /opt/kafka/bin/kafka-topics.sh --list --bootstrap-server kafka:9092
+```
 
-```docker compose exec kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server kafka:9092 --topic pg_conn.public.things --from-beginning```
+_Watch topic:_
 
-### Posgres
-Open psql:
+```
+> docker compose exec kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server kafka:9092 --topic pg_conn.public.things --from-beginning
+```
 
-```docker compose exec postgres psql -U demo -h postgres -d db```
+#### **Posgres**
+_Open psql:_
 
-Run statement:
+```
+> docker compose exec postgres psql -U demo -h postgres -d db
+```
 
-```docker compose exec postgres psql -U demo -h postgres -d db -c "..."```
+_Run statement:_
+
+```
+> docker compose exec postgres psql -U demo -h postgres -d db -c "..."
+```
 
 ---
 
