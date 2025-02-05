@@ -1,12 +1,10 @@
 services:
   postgres:
     image: debezium/postgres
-    # ports:
-    #   - 5432:5432
     environment:
-      - POSTGRES_USER=demo
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=db
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: db
     command: ["postgres", "-c", "wal_level=logical"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
@@ -17,8 +15,6 @@ services:
 
   kafka:
     image: apache/kafka
-    # ports:
-    #   - 29092:29092
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
@@ -36,17 +32,15 @@ services:
 
   debezium_connect:
     image: quay.io/debezium/connect:3.0
-    # ports:
-    #   - 8083:8083
     links:
       - postgres
       - kafka
     environment:
-      - BOOTSTRAP_SERVERS=kafka:9092
-      - GROUP_ID=1
-      - CONFIG_STORAGE_TOPIC=my_connect_configs
-      - OFFSET_STORAGE_TOPIC=my_connect_offsets
-      - STATUS_STORAGE_TOPIC=my_connect_statuses
+      BOOTSTRAP_SERVERS: kafka:9092
+      GROUP_ID: 1
+      CONFIG_STORAGE_TOPIC: my_connect_configs
+      OFFSET_STORAGE_TOPIC: my_connect_offsets
+      STATUS_STORAGE_TOPIC: my_connect_statuses
 
   pushpin:
     image: fanout/pushpin
@@ -55,14 +49,15 @@ services:
     volumes:
       - ./pushpin/routes:/etc/pushpin/routes
     depends_on:
-      - backend
+      - server
 
-  backend:
-    build: ./backend
-    # ports:
-    #   - 8000:8000
+  server:
+    build: ./server
     environment:
       POSTGRES_HOST: postgres
+      POSTGRES_DB: db
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: password
       KAFKA_HOST: kafka
       PUSHPIN_INTERNAL_HOST: pushpin
       PUSHPIN_EXTERNAL_HOST: localhost
@@ -72,28 +67,19 @@ services:
       watch:
         # Sync the working directory with the `/app` directory in the container
         - action: sync
-          path: ./backend/app
-          target: /backend/app
+          path: ./server/app
+          target: /server/app
           # Exclude the project virtual environment — it could be for a
           # different platform in the container
           ignore:
             - .venv/
         # Rebuild the image if dependencies change by checking uv.lock
         - action: rebuild
-          path: ./backend/uv.lock
+          path: ./server/uv.lock
     restart: always
     depends_on:
       postgres:
         condition: service_healthy
-    # depends_on:
-    #   - api_gateway
-
-  # api_gateway:
-  #   image: kong/kong-gateway
-  #   ports:
-  #     - 8000:8000
-  #   volumes:
-  #     - ./kong:/kong
 
   # setup
   postgres_setup:
@@ -114,5 +100,3 @@ services:
       - ./debezium:/deb_conf
     working_dir: /deb_conf
     command: --retry 5 --retry-max-time 120 --retry-connrefused -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" debezium_connect:8083/connectors/ -d @register-postgres.json
-    # depends_on:
-    #   - debezium_connect
